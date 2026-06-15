@@ -7,6 +7,7 @@ import glob
 import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from datetime import datetime
 
 st.set_page_config(
     page_title="Heart Disease Prediction",
@@ -207,6 +208,167 @@ def prepare_regression_input(df):
     return input_df
 
 # =========================
+# FUNGSI HISTORY KLASIFIKASI
+# =========================
+
+def add_to_classification_history(input_data, prediction, proba=None):
+    """Menambahkan hasil prediksi ke history"""
+    history_item = {
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'input_data': input_data.copy(),
+        'prediction': int(prediction),
+        'probability': float(proba[1]) if proba is not None else None
+    }
+    st.session_state.classification_history.insert(0, history_item)  # Tambah di awal
+    # Batasi maksimal 20 items
+    if len(st.session_state.classification_history) > 20:
+        st.session_state.classification_history = st.session_state.classification_history[:20]
+
+def delete_classification_history_item(index):
+    """Menghapus item history berdasarkan index"""
+    if 0 <= index < len(st.session_state.classification_history):
+        st.session_state.classification_history.pop(index)
+        st.rerun()
+
+def clear_all_classification_history():
+    """Menghapus semua history"""
+    st.session_state.classification_history = []
+    st.rerun()
+
+def show_classification_history():
+    """Menampilkan history prediksi klasifikasi"""
+    if not st.session_state.classification_history:
+        st.info("📭 Belum ada riwayat prediksi. Lakukan prediksi terlebih dahulu.")
+        return
+    
+    st.subheader("📜 Riwayat Prediksi Klasifikasi")
+    
+    col1, col2 = st.columns([6, 1])
+    with col2:
+        if st.button("🗑️ Hapus Semua", key="clear_all_classif", width='stretch'):
+            clear_all_classification_history()
+    
+    for idx, item in enumerate(st.session_state.classification_history):
+        with st.container():
+            col1, col2, col3, col4 = st.columns([2, 1.5, 1.5, 0.5])
+            
+            with col1:
+                st.write(f"**🕐 {item['timestamp']}**")
+            
+            with col2:
+                if item['prediction'] == 1:
+                    st.error(f"⚠️ Penyakit Jantung")
+                else:
+                    st.success(f"✅ Sehat")
+            
+            with col3:
+                if item['probability'] is not None:
+                    st.write(f"Prob: {item['probability']:.2%}")
+                else:
+                    st.write(f"Prob: -")
+            
+            with col4:
+                if st.button("❌", key=f"del_classif_{idx}", help="Hapus riwayat ini"):
+                    delete_classification_history_item(idx)
+            
+            # Detail dalam expander
+            with st.expander(f"📋 Detail Data Pasien - {item['timestamp']}"):
+                detail_data = []
+                for feature in CLASSIFICATION_FEATURES:
+                    value = item['input_data'].get(feature, 0)
+                    label = FEATURE_LABELS.get(feature, feature)
+                    if feature in BINARY_FEATURES:
+                        display_value = BINARY_FEATURES[feature].get(int(value), str(value))
+                    elif feature == 'exercise_level':
+                        display_value = EXERCISE_LEVEL_OPTIONS.get(int(value), str(value))
+                    else:
+                        display_value = f"{value:.1f}" if isinstance(value, float) else str(value)
+                    detail_data.append({"Fitur": label, "Nilai": display_value})
+                st.dataframe(pd.DataFrame(detail_data), width='stretch', hide_index=True)
+            
+            st.divider()
+
+# =========================
+# FUNGSI HISTORY REGRESI
+# =========================
+
+def add_to_regression_history(input_data, prediction):
+    """Menambahkan hasil prediksi regresi ke history"""
+    history_item = {
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'input_data': input_data.copy(),
+        'prediction': float(prediction)
+    }
+    st.session_state.regression_history.insert(0, history_item)
+    if len(st.session_state.regression_history) > 20:
+        st.session_state.regression_history = st.session_state.regression_history[:20]
+
+def delete_regression_history_item(index):
+    """Menghapus item history regresi berdasarkan index"""
+    if 0 <= index < len(st.session_state.regression_history):
+        st.session_state.regression_history.pop(index)
+        st.rerun()
+
+def clear_all_regression_history():
+    """Menghapus semua history regresi"""
+    st.session_state.regression_history = []
+    st.rerun()
+
+def show_regression_history():
+    """Menampilkan history prediksi regresi"""
+    if not st.session_state.regression_history:
+        st.info("📭 Belum ada riwayat prediksi. Lakukan prediksi terlebih dahulu.")
+        return
+    
+    st.subheader("📜 Riwayat Prediksi Regresi")
+    
+    col1, col2 = st.columns([6, 1])
+    with col2:
+        if st.button("🗑️ Hapus Semua", key="clear_all_reg", width='stretch'):
+            clear_all_regression_history()
+    
+    for idx, item in enumerate(st.session_state.regression_history):
+        with st.container():
+            col1, col2, col3, col4 = st.columns([2, 1.5, 1.5, 0.5])
+            
+            with col1:
+                st.write(f"**🕐 {item['timestamp']}**")
+            
+            with col2:
+                pred = item['prediction']
+                if pred < 90:
+                    st.warning(f"⚠️ {pred:.1f} mmHg (Rendah)")
+                elif pred <= 120:
+                    st.success(f"✅ {pred:.1f} mmHg (Normal)")
+                elif pred <= 140:
+                    st.warning(f"⚠️ {pred:.1f} mmHg (Prehipertensi)")
+                else:
+                    st.error(f"🔴 {pred:.1f} mmHg (Tinggi)")
+            
+            with col3:
+                st.write("")
+            
+            with col4:
+                if st.button("❌", key=f"del_reg_{idx}", help="Hapus riwayat ini"):
+                    delete_regression_history_item(idx)
+            
+            with st.expander(f"📋 Detail Data Pasien - {item['timestamp']}"):
+                detail_data = []
+                for feature in REGRESSION_FEATURES:
+                    value = item['input_data'].get(feature, 0)
+                    label = FEATURE_LABELS.get(feature, feature)
+                    if feature in BINARY_FEATURES:
+                        display_value = BINARY_FEATURES[feature].get(int(value), str(value))
+                    elif feature == 'exercise_level':
+                        display_value = EXERCISE_LEVEL_OPTIONS.get(int(value), str(value))
+                    else:
+                        display_value = f"{value:.1f}" if isinstance(value, float) else str(value)
+                    detail_data.append({"Fitur": label, "Nilai": display_value})
+                st.dataframe(pd.DataFrame(detail_data), width='stretch', hide_index=True)
+            
+            st.divider()
+
+# =========================
 # PENJELASAN DATASET
 # =========================
 
@@ -251,7 +413,7 @@ def show_dataset_explanation(df):
         st.dataframe(df.head(10), width='stretch')
 
 # =========================
-# VISUALISASI DATA - SEDERHANA
+# VISUALISASI DATA
 # =========================
 
 def show_data_visualization(df):
@@ -431,8 +593,12 @@ def show_classification_manual(model, df_full):
             if has_proba:
                 proba = model.predict_proba(input_df)[0]
                 st.session_state.classification_proba = proba
+                # Simpan ke history dengan proba
+                add_to_classification_history(input_data, prediction, proba)
             else:
                 st.session_state.classification_proba = None
+                # Simpan ke history tanpa proba
+                add_to_classification_history(input_data, prediction, None)
                 
         except Exception as e:
             st.error(f"Error: {e}")
@@ -476,6 +642,10 @@ def show_classification_manual(model, df_full):
             st.plotly_chart(fig_gauge, width='stretch')
         else:
             st.info("📌 Model ini hanya memberikan prediksi kelas (probabilitas tidak tersedia)")
+    
+    # Tampilkan history prediksi
+    st.markdown("---")
+    show_classification_history()
 
 def show_classification_csv(model):
     st.header("📁 Klasifikasi - Upload File")
@@ -566,6 +736,7 @@ def show_regression_manual(model):
             input_df = pd.DataFrame([input_data])[REGRESSION_FEATURES]
             prediction = model.predict(input_df)[0]
             st.session_state.regression_result = prediction
+            add_to_regression_history(input_data, prediction)
         except Exception as e:
             st.error(f"Error: {e}")
     
@@ -614,6 +785,10 @@ def show_regression_manual(model):
         else:
             st.error("🔴 Hipertensi (Tekanan Darah Tinggi)")
             st.write("💡 Rekomendasi: Segera konsultasi ke dokter, kurangi garam.")
+    
+    # Tampilkan history prediksi
+    st.markdown("---")
+    show_regression_history()
 
 def show_regression_csv(model):
     st.header("📁 Regresi - Upload File")
