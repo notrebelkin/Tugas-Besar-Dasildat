@@ -271,11 +271,9 @@ def show_data_visualization(df):
     
     tab1, tab2 = st.tabs(["📈 Distribusi Fitur", "📊 Korelasi"])
     
-    # ==================== TAB 1: DISTRIBUSI FITUR ====================
     with tab1:
         sub_tab1, sub_tab2 = st.tabs(["🔢 Distribusi Numerik", "🏷️ Distribusi Kategorikal"])
         
-        # ----- NUMERIK -----
         with sub_tab1:
             st.subheader("Distribusi Fitur Numerik")
             if numeric_cols:
@@ -291,7 +289,6 @@ def show_data_visualization(df):
             else:
                 st.info("Tidak ada fitur numerik yang tersedia.")
         
-        # ----- KATEGORIKAL -----
         with sub_tab2:
             st.subheader("Distribusi Fitur Kategorikal")
             if categorical_cols:
@@ -308,19 +305,16 @@ def show_data_visualization(df):
                     total = counts['count'].sum()
                     counts['percentage'] = (counts['count'] / total * 100).round(1)
                     
-                    # Horizontal Bar Chart
                     fig_bar = px.bar(counts, x='count', y='label', orientation='h', title=f"Distribusi {FEATURE_LABELS.get(selected_cat, selected_cat)}", color_discrete_sequence=['#F18F01'], text='count')
                     fig_bar.update_traces(textposition='outside', textfont_size=14)
                     fig_bar.update_layout(height=350, xaxis_title="Jumlah Pasien", yaxis_title=None)
                     st.plotly_chart(fig_bar, width='stretch')
                     
-                    # Pie Chart
                     fig_pie = px.pie(counts, values='count', names='label', title=f"Proporsi {FEATURE_LABELS.get(selected_cat, selected_cat)}", color_discrete_sequence=px.colors.qualitative.Set2, hole=0.3)
                     fig_pie.update_traces(textposition='inside', textinfo='percent+label')
                     fig_pie.update_layout(height=400)
                     st.plotly_chart(fig_pie, width='stretch')
                     
-                    # Tabel Distribusi
                     st.subheader(f"📋 Tabel Distribusi {FEATURE_LABELS.get(selected_cat, selected_cat)}")
                     table_data = []
                     for _, row in counts.iterrows():
@@ -334,7 +328,6 @@ def show_data_visualization(df):
             else:
                 st.info("Tidak ada fitur kategorikal yang tersedia.")
     
-    # ==================== TAB 2: KORELASI ====================
     with tab2:
         st.subheader("Matriks Korelasi Antar Fitur")
         if len(numeric_cols) >= 2:
@@ -378,6 +371,11 @@ def show_classification_manual(model, df_full):
     
     model_type = type(model).__name__
     st.caption(f"📌 Model yang digunakan: **{model_type}**")
+    
+    # Cek apakah model memiliki predict_proba
+    has_proba = hasattr(model, "predict_proba")
+    if not has_proba:
+        st.info(f"ℹ️ Model {model_type} hanya memberikan prediksi kelas (tanpa probabilitas)")
     
     input_data = {}
     
@@ -428,9 +426,14 @@ def show_classification_manual(model, df_full):
         try:
             input_df = pd.DataFrame([input_data])[CLASSIFICATION_FEATURES]
             prediction = model.predict(input_df)[0]
-            proba = model.predict_proba(input_df)[0]
             st.session_state.classification_result = prediction
-            st.session_state.classification_proba = proba
+            
+            if has_proba:
+                proba = model.predict_proba(input_df)[0]
+                st.session_state.classification_proba = proba
+            else:
+                st.session_state.classification_proba = None
+                
         except Exception as e:
             st.error(f"Error: {e}")
     
@@ -447,29 +450,32 @@ def show_classification_manual(model, df_full):
                 st.error("⚠️ **Penyakit jantung terdeteksi**")
             else:
                 st.success("✅ **Tidak ada penyakit jantung**")
-        with col2:
-            st.metric("Probabilitas", f"{proba[1]:.2%}")
         
-        st.progress(proba[1])
-        
-        # Risk Gauge
-        fig_gauge = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=proba[1] * 100,
-            title={'text': "Tingkat Risiko (%)", 'font': {'size': 20}},
-            gauge={
-                'axis': {'range': [0, 100]},
-                'bar': {'color': "#D64550" if proba[1] > 0.5 else "#2E86AB"},
-                'steps': [
-                    {'range': [0, 30], 'color': '#CCFFCC'},
-                    {'range': [30, 60], 'color': '#FFFFCC'},
-                    {'range': [60, 100], 'color': '#FFCCCC'}
-                ],
-                'threshold': {'line': {'color': "red", 'width': 4}, 'value': proba[1] * 100}
-            }
-        ))
-        fig_gauge.update_layout(height=250)
-        st.plotly_chart(fig_gauge, width='stretch')
+        if has_proba and proba is not None:
+            with col2:
+                st.metric("Probabilitas", f"{proba[1]:.2%}")
+            st.progress(proba[1])
+            
+            # Risk Gauge
+            fig_gauge = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=proba[1] * 100,
+                title={'text': "Tingkat Risiko (%)", 'font': {'size': 20}},
+                gauge={
+                    'axis': {'range': [0, 100]},
+                    'bar': {'color': "#D64550" if proba[1] > 0.5 else "#2E86AB"},
+                    'steps': [
+                        {'range': [0, 30], 'color': '#CCFFCC'},
+                        {'range': [30, 60], 'color': '#FFFFCC'},
+                        {'range': [60, 100], 'color': '#FFCCCC'}
+                    ],
+                    'threshold': {'line': {'color': "red", 'width': 4}, 'value': proba[1] * 100}
+                }
+            ))
+            fig_gauge.update_layout(height=250)
+            st.plotly_chart(fig_gauge, width='stretch')
+        else:
+            st.info("📌 Model ini hanya memberikan prediksi kelas (probabilitas tidak tersedia)")
 
 def show_classification_csv(model):
     st.header("📁 Klasifikasi - Upload File")
@@ -598,12 +604,16 @@ def show_regression_manual(model):
         
         if prediction < 90:
             st.warning("⚠️ Hipotensi (Tekanan Darah Rendah)")
+            st.write("💡 Rekomendasi: Perbanyak minum air putih, konsultasi ke dokter.")
         elif prediction <= 120:
             st.success("✅ Tekanan Darah Normal")
+            st.write("💡 Pertahankan gaya hidup sehat!")
         elif prediction <= 140:
             st.warning("⚠️ Prehipertensi")
+            st.write("💡 Rekomendasi: Kurangi garam, perbanyak olahraga.")
         else:
             st.error("🔴 Hipertensi (Tekanan Darah Tinggi)")
+            st.write("💡 Rekomendasi: Segera konsultasi ke dokter, kurangi garam.")
 
 def show_regression_csv(model):
     st.header("📁 Regresi - Upload File")
@@ -660,6 +670,11 @@ def main():
             selected_model = st.sidebar.selectbox("Pilih model", classification_models, format_func=lambda x: os.path.basename(x))
             model = load_model(selected_model)
             st.sidebar.success(f"✅ Menggunakan: {os.path.basename(selected_model)}")
+            
+            # Tampilkan info model
+            model_type = type(model).__name__
+            has_proba = hasattr(model, "predict_proba")
+            st.sidebar.caption(f"📌 {model_type} | Proba: {'✓' if has_proba else '✗'}")
         else:
             st.info("📌 Tidak ada model klasifikasi. Menggunakan model default (Random Forest).")
             model = train_classification_model(df)
