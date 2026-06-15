@@ -7,7 +7,6 @@ import glob
 import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.neighbors import KNeighborsClassifier
 
 st.set_page_config(
     page_title="Heart Disease Prediction",
@@ -170,9 +169,6 @@ def load_dataset():
         st.success(f"✅ Dataset ditemukan: {dataset_file}")
         st.info(f"📊 {df.shape[0]} baris data, {df.shape[1]} kolom")
         
-        with st.expander("📋 Kolom yang tersedia dalam dataset"):
-            st.write(list(df.columns))
-        
         return df
     except Exception as e:
         st.error(f"Error: {e}")
@@ -255,7 +251,7 @@ def show_dataset_explanation(df):
         st.dataframe(df.head(10), width='stretch')
 
 # =========================
-# VISUALISASI DATA - DIPERBAIKI
+# VISUALISASI DATA - SEDERHANA
 # =========================
 
 def show_data_visualization(df):
@@ -273,30 +269,29 @@ def show_data_visualization(df):
     st.info(f"📌 **Fitur Numerik ({len(numeric_cols)}):** {', '.join([FEATURE_LABELS.get(c, c) for c in numeric_cols])}")
     st.info(f"📌 **Fitur Kategorikal ({len(categorical_cols)}):** {', '.join([FEATURE_LABELS.get(c, c) for c in categorical_cols])}")
     
-    tab1, tab2, tab3 = st.tabs(["📈 Distribusi Fitur", "🎯 Analisis Target", "📊 Korelasi"])
+    tab1, tab2 = st.tabs(["📈 Distribusi Fitur", "📊 Korelasi"])
     
+    # ==================== TAB 1: DISTRIBUSI FITUR ====================
     with tab1:
         sub_tab1, sub_tab2 = st.tabs(["🔢 Distribusi Numerik", "🏷️ Distribusi Kategorikal"])
         
+        # ----- NUMERIK -----
         with sub_tab1:
             st.subheader("Distribusi Fitur Numerik")
             if numeric_cols:
                 selected_num = st.selectbox("Pilih fitur numerik", numeric_cols, format_func=lambda x: FEATURE_LABELS.get(x, x), key="num_feature")
                 
-                fig_hist = px.histogram(df, x=selected_num, title=f"Histogram - {FEATURE_LABELS.get(selected_num, selected_num)}", color_discrete_sequence=['#2E86AB'], nbins=30, marginal='box')
+                fig_hist = px.histogram(df, x=selected_num, title=f"Histogram - {FEATURE_LABELS.get(selected_num, selected_num)}", color_discrete_sequence=['#2E86AB'], nbins=30)
                 fig_hist.update_layout(height=450)
                 st.plotly_chart(fig_hist, width='stretch')
                 
                 fig_box = px.box(df, y=selected_num, title=f"Box Plot - {FEATURE_LABELS.get(selected_num, selected_num)}", color_discrete_sequence=['#A23B72'])
                 fig_box.update_layout(height=450)
                 st.plotly_chart(fig_box, width='stretch')
-                
-                fig_violin = px.violin(df, y=selected_num, title=f"Violin Plot - {FEATURE_LABELS.get(selected_num, selected_num)}", box=True, color_discrete_sequence=['#F18F01'])
-                fig_violin.update_layout(height=450)
-                st.plotly_chart(fig_violin, width='stretch')
             else:
                 st.info("Tidak ada fitur numerik yang tersedia.")
         
+        # ----- KATEGORIKAL -----
         with sub_tab2:
             st.subheader("Distribusi Fitur Kategorikal")
             if categorical_cols:
@@ -313,110 +308,61 @@ def show_data_visualization(df):
                     total = counts['count'].sum()
                     counts['percentage'] = (counts['count'] / total * 100).round(1)
                     
+                    # Horizontal Bar Chart
                     fig_bar = px.bar(counts, x='count', y='label', orientation='h', title=f"Distribusi {FEATURE_LABELS.get(selected_cat, selected_cat)}", color_discrete_sequence=['#F18F01'], text='count')
                     fig_bar.update_traces(textposition='outside', textfont_size=14)
                     fig_bar.update_layout(height=350, xaxis_title="Jumlah Pasien", yaxis_title=None)
                     st.plotly_chart(fig_bar, width='stretch')
                     
-                    fig_donut = px.pie(counts, values='count', names='label', title=f"Proporsi {FEATURE_LABELS.get(selected_cat, selected_cat)}", color_discrete_sequence=px.colors.qualitative.Set2, hole=0.4)
-                    fig_donut.update_traces(textposition='inside', textinfo='percent+label')
-                    fig_donut.update_layout(height=400)
-                    st.plotly_chart(fig_donut, width='stretch')
+                    # Pie Chart
+                    fig_pie = px.pie(counts, values='count', names='label', title=f"Proporsi {FEATURE_LABELS.get(selected_cat, selected_cat)}", color_discrete_sequence=px.colors.qualitative.Set2, hole=0.3)
+                    fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+                    fig_pie.update_layout(height=400)
+                    st.plotly_chart(fig_pie, width='stretch')
                     
+                    # Tabel Distribusi
                     st.subheader(f"📋 Tabel Distribusi {FEATURE_LABELS.get(selected_cat, selected_cat)}")
                     table_data = []
                     for _, row in counts.iterrows():
-                        table_data.append({'Kategori': row['label'], 'Nilai': row['value'], 'Jumlah Pasien': int(row['count']), 'Persentase (%)': row['percentage']})
-                    table_data.append({'Kategori': 'TOTAL', 'Nilai': '-', 'Jumlah Pasien': int(total), 'Persentase (%)': 100.0})
+                        table_data.append({
+                            'Kategori': row['label'],
+                            'Jumlah Pasien': int(row['count']),
+                            'Persentase': f"{row['percentage']}%"
+                        })
+                    table_data.append({'Kategori': '**TOTAL**', 'Jumlah Pasien': int(total), 'Persentase': '100%'})
                     st.dataframe(pd.DataFrame(table_data), width='stretch', hide_index=True)
-                    
-                    if len(counts) == 2:
-                        count_1 = counts[counts['value'] == 1]['count'].values[0] if len(counts[counts['value'] == 1]) > 0 else 0
-                        count_0 = counts[counts['value'] == 0]['count'].values[0] if len(counts[counts['value'] == 0]) > 0 else 0
-                        col1, col2 = st.columns(2)
-                        with col1: st.info(f"📌 **{FEATURE_LABELS.get(selected_cat, selected_cat)} = YA (1)**\nJumlah: **{int(count_1)}** pasien ({count_1/total*100:.1f}%)")
-                        with col2: st.info(f"📌 **{FEATURE_LABELS.get(selected_cat, selected_cat)} = TIDAK (0)**\nJumlah: **{int(count_0)}** pasien ({count_0/total*100:.1f}%)")
             else:
                 st.info("Tidak ada fitur kategorikal yang tersedia.")
     
+    # ==================== TAB 2: KORELASI ====================
     with tab2:
-        if 'heart_disease' in df.columns:
-            st.subheader("Analisis Target (Penyakit Jantung)")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                target_counts = df['heart_disease'].value_counts().reset_index()
-                target_counts.columns = ['heart_disease', 'count']
-                target_counts['heart_disease'] = target_counts['heart_disease'].map({0: 'Tidak Ada', 1: 'Ada'})
-                fig_pie = px.pie(target_counts, values='count', names='heart_disease', title="Proporsi Penyakit Jantung", color_discrete_sequence=['#2E86AB', '#D64550'], hole=0.4)
-                fig_pie.update_layout(height=450)
-                st.plotly_chart(fig_pie, width='stretch')
-            
-            with col2:
-                compare_options = numeric_cols + categorical_cols
-                if compare_options:
-                    selected_compare = st.selectbox("Pilih fitur untuk dibandingkan", compare_options, format_func=lambda x: FEATURE_LABELS.get(x, x), key="compare_feature")
-                    if selected_compare in numeric_cols:
-                        fig_box = px.box(df, x='heart_disease', y=selected_compare, title=f"{FEATURE_LABELS.get(selected_compare, selected_compare)} vs Penyakit Jantung", color='heart_disease', color_discrete_map={0: '#2E86AB', 1: '#D64550'})
-                        fig_box.update_layout(height=450)
-                        st.plotly_chart(fig_box, width='stretch')
-                    else:
-                        cross_tab = pd.crosstab(df[selected_compare], df['heart_disease'])
-                        cross_tab.columns = ['Tidak Ada', 'Ada']
-                        if selected_compare == 'exercise_level':
-                            cross_tab.index = cross_tab.index.map(EXERCISE_LEVEL_OPTIONS)
-                        else:
-                            cross_tab.index = cross_tab.index.map(BINARY_FEATURES.get(selected_compare, {0: "Tidak", 1: "Ya"}))
-                        plot_df = cross_tab.reset_index().melt(id_vars='index', var_name='heart_disease', value_name='count')
-                        fig_bar = px.bar(plot_df, x='index', y='count', color='heart_disease', title=f"{FEATURE_LABELS.get(selected_compare, selected_compare)} vs Penyakit Jantung", barmode='group', color_discrete_map={'Tidak Ada': '#2E86AB', 'Ada': '#D64550'}, text='count')
-                        fig_bar.update_traces(textposition='outside')
-                        fig_bar.update_layout(height=450, xaxis_title=None)
-                        st.plotly_chart(fig_bar, width='stretch')
-            
-            if numeric_cols:
-                st.subheader("Perbandingan Rata-rata Fitur Numerik")
-                mean_df = df.groupby('heart_disease')[numeric_cols].mean().T
-                mean_df.columns = ['Tidak Ada', 'Ada']
-                mean_df['Perbedaan'] = mean_df['Ada'] - mean_df['Tidak Ada']
-                mean_df = mean_df.sort_values('Perbedaan', ascending=False)
-                diff_df = mean_df[['Perbedaan']].reset_index()
-                diff_df.columns = ['Fitur', 'Perbedaan']
-                diff_df['Fitur'] = diff_df['Fitur'].map(lambda x: FEATURE_LABELS.get(x, x))
-                fig_diff = px.bar(diff_df, x='Perbedaan', y='Fitur', orientation='h', title="Perbedaan Rata-rata (Ada - Tidak Ada)", color='Perbedaan', color_continuous_scale='RdBu', text='Perbedaan')
-                fig_diff.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-                fig_diff.update_layout(height=max(400, len(diff_df) * 30))
-                st.plotly_chart(fig_diff, width='stretch')
-        else:
-            st.info("Tidak ada kolom 'heart_disease' untuk analisis target.")
-    
-    with tab3:
         st.subheader("Matriks Korelasi Antar Fitur")
         if len(numeric_cols) >= 2:
-            selected_corr = st.multiselect("Pilih fitur untuk matriks korelasi (minimal 2)", numeric_cols, default=numeric_cols[:4] if len(numeric_cols) >= 4 else numeric_cols, format_func=lambda x: FEATURE_LABELS.get(x, x), key="corr_features")
+            selected_corr = st.multiselect("Pilih fitur untuk matriks korelasi", numeric_cols, default=numeric_cols[:3] if len(numeric_cols) >= 3 else numeric_cols, format_func=lambda x: FEATURE_LABELS.get(x, x), key="corr_features")
             if len(selected_corr) >= 2:
                 corr_matrix = df[selected_corr].corr()
                 fig_corr = px.imshow(corr_matrix, text_auto='.2f', aspect="auto", title="Matriks Korelasi Antar Fitur", color_continuous_scale='RdBu', zmin=-1, zmax=1)
                 fig_corr.update_layout(height=500)
                 st.plotly_chart(fig_corr, width='stretch')
+        
         if 'heart_disease' in df.columns and len(numeric_cols) > 0:
             st.subheader("Korelasi dengan Penyakit Jantung")
             corr_list = []
             for col in numeric_cols:
-                if col != 'heart_disease':
-                    corr_val = df[col].corr(df['heart_disease'])
-                    if not pd.isna(corr_val):
-                        corr_list.append((col, corr_val))
-            corr_list.sort(key=lambda x: x[1], reverse=True)
+                corr_val = df[col].corr(df['heart_disease'])
+                if not pd.isna(corr_val):
+                    corr_list.append((col, corr_val))
+            corr_list.sort(key=lambda x: abs(x[1]), reverse=True)
             if corr_list:
-                corr_df = pd.DataFrame(corr_list, columns=['Fitur', 'Korelasi'])
+                corr_df = pd.DataFrame(corr_list[:10], columns=['Fitur', 'Korelasi'])
                 corr_df['Fitur'] = corr_df['Fitur'].map(lambda x: FEATURE_LABELS.get(x, x))
                 fig_corr = px.bar(corr_df, x='Korelasi', y='Fitur', orientation='h', title="Korelasi dengan Penyakit Jantung", color='Korelasi', color_continuous_scale='RdBu', text='Korelasi')
                 fig_corr.update_traces(texttemplate='%{text:.3f}', textposition='outside')
-                fig_corr.update_layout(height=max(400, len(corr_df) * 30))
+                fig_corr.update_layout(height=400)
                 st.plotly_chart(fig_corr, width='stretch')
 
 # =========================
-# KLASIFIKASI (HANYA FUNGSI PENTING - SESUAIKAN DENGAN KODE SEBELUMNYA)
+# KLASIFIKASI
 # =========================
 
 def train_classification_model(df):
@@ -502,23 +448,24 @@ def show_classification_manual(model, df_full):
             else:
                 st.success("✅ **Tidak ada penyakit jantung**")
         with col2:
-            st.metric("Probabilitas Penyakit Jantung", f"{proba[1]:.2%}")
+            st.metric("Probabilitas", f"{proba[1]:.2%}")
         
         st.progress(proba[1])
         
+        # Risk Gauge
         fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number",
             value=proba[1] * 100,
             title={'text': "Tingkat Risiko (%)", 'font': {'size': 20}},
             gauge={
-                'axis': {'range': [0, 100], 'tickwidth': 1},
+                'axis': {'range': [0, 100]},
                 'bar': {'color': "#D64550" if proba[1] > 0.5 else "#2E86AB"},
                 'steps': [
                     {'range': [0, 30], 'color': '#CCFFCC'},
                     {'range': [30, 60], 'color': '#FFFFCC'},
                     {'range': [60, 100], 'color': '#FFCCCC'}
                 ],
-                'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': proba[1] * 100}
+                'threshold': {'line': {'color': "red", 'width': 4}, 'value': proba[1] * 100}
             }
         ))
         fig_gauge.update_layout(height=250)
@@ -542,8 +489,8 @@ def show_classification_csv(model):
                 result_df["status"] = ["✅ Sehat" if p == 0 else "⚠️ Berisiko" for p in predictions]
                 st.subheader("Hasil Prediksi")
                 st.dataframe(result_df, width='stretch')
-                csv_data = result_df.to_csv(index=False).encode('utf-8')
-                st.download_button("💾 Download Hasil", csv_data, "hasil_prediksi.csv")
+                csv_data = result_df.to_csv(index=False).encode()
+                st.download_button("💾 Download", csv_data, "hasil_prediksi.csv")
         except Exception as e:
             st.error(f"Error: {e}")
 
@@ -628,13 +575,14 @@ def show_regression_manual(model):
         with col2:
             st.info("Referensi: Normal 90-120 mmHg")
         
+        # Gauge Chart
         fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number+delta",
             value=prediction,
-            title={'text': "Tekanan Darah (mmHg)", 'font': {'size': 20}},
-            delta={'reference': 120, 'increasing': {'color': "red"}, 'decreasing': {'color': "green"}},
+            title={'text': "Tekanan Darah (mmHg)"},
+            delta={'reference': 120},
             gauge={
-                'axis': {'range': [None, 200], 'tickwidth': 1},
+                'axis': {'range': [0, 200]},
                 'bar': {'color': "#2E86AB"},
                 'steps': [
                     {'range': [0, 90], 'color': '#FFCCCC'},
@@ -642,7 +590,7 @@ def show_regression_manual(model):
                     {'range': [120, 140], 'color': '#FFFFCC'},
                     {'range': [140, 200], 'color': '#FFCCCC'}
                 ],
-                'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': prediction}
+                'threshold': {'line': {'color': "red", 'width': 4}, 'value': prediction}
             }
         ))
         fig_gauge.update_layout(height=300)
@@ -674,8 +622,8 @@ def show_regression_csv(model):
                 result_df["predicted_blood_pressure"] = predictions
                 st.subheader("Hasil Prediksi")
                 st.dataframe(result_df, width='stretch')
-                csv_data = result_df.to_csv(index=False).encode('utf-8')
-                st.download_button("💾 Download Hasil", csv_data, "hasil_regresi.csv")
+                csv_data = result_df.to_csv(index=False).encode()
+                st.download_button("💾 Download", csv_data, "hasil_regresi.csv")
         except Exception as e:
             st.error(f"Error: {e}")
 
