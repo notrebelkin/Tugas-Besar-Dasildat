@@ -40,13 +40,11 @@ CLASSIFICATION_FEATURES = [
     "chest_pain", "dizziness", "diabetes", "stroke"
 ]
 
-# ==================== FITUR REGRESI (HARUS SAMA DENGAN MODEL) ====================
 REGRESSION_FEATURES = [
     "age", "gender", "bmi", "exercise_level",
     "smoking", "alcohol", "cholesterol", "glucose", "fatigue",
     "chest_pain", "dizziness", "diabetes", "stroke", "heart_disease"
 ]
-# =================================================================================
 
 FEATURE_LABELS = {
     "blood_pressure": "Tekanan Darah (mmHg)",
@@ -93,6 +91,92 @@ CATEGORICAL_COLUMNS = [
 NUMERIC_COLUMNS = [
     'blood_pressure', 'age', 'bmi', 'cholesterol', 'glucose'
 ]
+
+# ==================== FUNGSI STATUS HIPERTENSI ====================
+def get_hypertension_status(blood_pressure):
+    """
+    Menentukan status hipertensi berdasarkan tekanan darah
+    """
+    if blood_pressure < 90:
+        return {
+            'status': 'Hipotensi (Rendah)',
+            'category': 'Rendah',
+            'emoji': '⚠️',
+            'color': 'blue',
+            'level': 'rendah',
+            'recommendation': 'Perbanyak minum air putih, konsultasi ke dokter jika sering pusing.'
+        }
+    elif blood_pressure <= 120:
+        return {
+            'status': 'Normal',
+            'category': 'Normal',
+            'emoji': '✅',
+            'color': 'green',
+            'level': 'normal',
+            'recommendation': 'Pertahankan gaya hidup sehat!'
+        }
+    elif blood_pressure <= 130:
+        return {
+            'status': 'Prehipertensi Ringan',
+            'category': 'Prehipertensi',
+            'emoji': '⚠️',
+            'color': 'yellow',
+            'level': 'ringan',
+            'recommendation': 'Kurangi garam, perbanyak olahraga, kelola stres.'
+        }
+    elif blood_pressure <= 140:
+        return {
+            'status': 'Prehipertensi Sedang',
+            'category': 'Prehipertensi',
+            'emoji': '⚠️',
+            'color': 'orange',
+            'level': 'sedang',
+            'recommendation': 'Kurangi garam drastis, olahraga teratur, cek tekanan darah rutin.'
+        }
+    elif blood_pressure <= 160:
+        return {
+            'status': 'Hipertensi Stadium 1 (Ringan)',
+            'category': 'Hipertensi',
+            'emoji': '🔴',
+            'color': 'red',
+            'level': 'stadium1',
+            'recommendation': 'Segera konsultasi ke dokter, kurangi garam, hindari rokok dan alkohol.'
+        }
+    elif blood_pressure <= 180:
+        return {
+            'status': 'Hipertensi Stadium 2 (Sedang)',
+            'category': 'Hipertensi',
+            'emoji': '🔴',
+            'color': 'darkred',
+            'level': 'stadium2',
+            'recommendation': 'SEGERA konsultasi ke dokter, patuhi pengobatan, pantau tekanan darah rutin.'
+        }
+    else:
+        return {
+            'status': 'Hipertensi Stadium 3 (Berat) - KRISIS HIPERTENSI!',
+            'category': 'Hipertensi',
+            'emoji': '🚨',
+            'color': 'black',
+            'level': 'krisis',
+            'recommendation': 'SEGERA ke IGD! Ini adalah kondisi darurat medis!'
+        }
+
+def get_hypertension_badge(blood_pressure):
+    """Menghasilkan badge HTML untuk status hipertensi"""
+    info = get_hypertension_status(blood_pressure)
+    colors = {
+        'green': '#28a745',
+        'blue': '#007bff',
+        'yellow': '#ffc107',
+        'orange': '#fd7e14',
+        'red': '#dc3545',
+        'darkred': '#8b0000',
+        'black': '#000000'
+    }
+    color = colors.get(info['color'], '#6c757d')
+    return f'<span style="background-color:{color};color:white;padding:4px 12px;border-radius:12px;font-weight:bold;">{info["emoji"]} {info["status"]}</span>'
+
+# ====================================================================
 
 # =========================
 # FUNGSI UTILITY
@@ -209,22 +293,11 @@ def prepare_regression_input(df):
         input_df[col] = pd.to_numeric(input_df[col], errors="coerce")
     return input_df
 
-# ==================== FUNGSI UNTUK MENDAPATKAN FITUR DARI MODEL ====================
 def get_model_feature_order(model):
     """Mendapatkan urutan fitur dari model yang sudah dilatih"""
     if hasattr(model, "feature_names_in_"):
         return list(model.feature_names_in_)
     return None
-
-def get_feature_order_from_model(model):
-    """Mendapatkan urutan fitur dari model - versi aman"""
-    try:
-        if hasattr(model, "feature_names_in_"):
-            return list(model.feature_names_in_)
-    except:
-        pass
-    return None
-# =================================================================================
 
 # =========================
 # FUNGSI HISTORY KLASIFIKASI
@@ -345,17 +418,11 @@ def show_regression_history():
             
             with col2:
                 pred = item['prediction']
-                if pred < 90:
-                    st.warning(f"⚠️ {pred:.1f} mmHg (Rendah)")
-                elif pred <= 120:
-                    st.success(f"✅ {pred:.1f} mmHg (Normal)")
-                elif pred <= 140:
-                    st.warning(f"⚠️ {pred:.1f} mmHg (Prehipertensi)")
-                else:
-                    st.error(f"🔴 {pred:.1f} mmHg (Tinggi)")
+                hp_status = get_hypertension_status(pred)
+                st.write(f"{hp_status['emoji']} {hp_status['status']}")
             
             with col3:
-                st.write("")
+                st.write(f"{pred:.1f} mmHg")
             
             with col4:
                 if st.button("❌", key=f"del_reg_{idx}", help="Hapus riwayat ini"):
@@ -686,7 +753,7 @@ def show_classification_csv(model):
             st.error(f"Error: {e}")
 
 # =========================
-# REGRESI - DIPERBAIKI DENGAN AUTO-DETECT FEATURE ORDER
+# REGRESI - DIPERBAIKI DENGAN AUTO-DETECT FEATURE ORDER + STATUS HIPERTENSI
 # =========================
 
 def train_regression_model(df):
@@ -701,19 +768,11 @@ def show_regression_manual(model):
     st.write("Masukkan data pasien untuk memprediksi nilai Tekanan Darah.")
     st.info("💡 Tekanan Darah adalah TARGET yang akan diprediksi")
     
-    # ==================== DETEKSI URUTAN FITUR DARI MODEL ====================
+    # Deteksi urutan fitur dari model
     feature_order = get_model_feature_order(model)
-    
-    if feature_order:
-        st.info(f"📌 Model menggunakan {len(feature_order)} fitur dengan urutan tertentu")
-        with st.expander("📋 Lihat urutan fitur yang digunakan model"):
-            for i, f in enumerate(feature_order):
-                st.write(f"{i+1}. {FEATURE_LABELS.get(f, f)}")
-    else:
-        # Fallback ke REGRESSION_FEATURES
+    if not feature_order:
         feature_order = REGRESSION_FEATURES
         st.info(f"📌 Menggunakan urutan fitur default ({len(feature_order)} fitur)")
-    # ========================================================================
     
     input_data = {}
     
@@ -772,18 +831,16 @@ def show_regression_manual(model):
     
     if predict_clicked:
         try:
-            # ==================== PERBAIKAN: Gunakan urutan dari model ====================
-            # Buat DataFrame dengan urutan yang sama dengan model
             input_df = pd.DataFrame([[input_data[f] for f in feature_order]], columns=feature_order)
             prediction = model.predict(input_df)[0]
             st.session_state.regression_result = prediction
             add_to_regression_history(input_data, prediction)
-            # =================================================================================
         except Exception as e:
             st.error(f"Error: {e}")
     
     if st.session_state.regression_result is not None:
         prediction = st.session_state.regression_result
+        hp_status = get_hypertension_status(prediction)
         
         st.markdown("---")
         st.subheader("📊 Hasil Prediksi")
@@ -791,9 +848,27 @@ def show_regression_manual(model):
         col1, col2 = st.columns(2)
         with col1:
             st.metric("Prediksi Tekanan Darah", f"{prediction:.1f} mmHg")
-        with col2:
-            st.info("Referensi: Normal 90-120 mmHg")
         
+        with col2:
+            # Tampilkan status hipertensi
+            color_map = {
+                'green': '#28a745',
+                'blue': '#007bff',
+                'yellow': '#ffc107',
+                'orange': '#fd7e14',
+                'red': '#dc3545',
+                'darkred': '#8b0000',
+                'black': '#000000'
+            }
+            color = color_map.get(hp_status['color'], '#6c757d')
+            st.markdown(
+                f'<div style="background-color:{color};color:white;padding:10px 16px;border-radius:8px;text-align:center;font-weight:bold;font-size:18px;">'
+                f'{hp_status["emoji"]} {hp_status["status"]}'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+        
+        # Gauge Chart dengan zona hipertensi
         fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number+delta",
             value=prediction,
@@ -803,10 +878,13 @@ def show_regression_manual(model):
                 'axis': {'range': [0, 200]},
                 'bar': {'color': "#2E86AB"},
                 'steps': [
-                    {'range': [0, 90], 'color': '#FFCCCC'},
-                    {'range': [90, 120], 'color': '#CCFFCC'},
-                    {'range': [120, 140], 'color': '#FFFFCC'},
-                    {'range': [140, 200], 'color': '#FFCCCC'}
+                    {'range': [0, 90], 'color': '#CCFFCC', 'name': 'Rendah'},
+                    {'range': [90, 120], 'color': '#CCFFCC', 'name': 'Normal'},
+                    {'range': [120, 130], 'color': '#FFFF99', 'name': 'Prehipertensi'},
+                    {'range': [130, 140], 'color': '#FFCC66', 'name': 'Prehipertensi'},
+                    {'range': [140, 160], 'color': '#FF9999', 'name': 'Hipertensi 1'},
+                    {'range': [160, 180], 'color': '#FF6666', 'name': 'Hipertensi 2'},
+                    {'range': [180, 200], 'color': '#FF0000', 'name': 'Krisis'}
                 ],
                 'threshold': {'line': {'color': "red", 'width': 4}, 'value': prediction}
             }
@@ -814,18 +892,22 @@ def show_regression_manual(model):
         fig_gauge.update_layout(height=300)
         st.plotly_chart(fig_gauge, width='stretch')
         
-        if prediction < 90:
-            st.warning("⚠️ Hipotensi (Tekanan Darah Rendah)")
-            st.write("💡 Rekomendasi: Perbanyak minum air putih, konsultasi ke dokter.")
-        elif prediction <= 120:
-            st.success("✅ Tekanan Darah Normal")
-            st.write("💡 Pertahankan gaya hidup sehat!")
-        elif prediction <= 140:
-            st.warning("⚠️ Prehipertensi")
-            st.write("💡 Rekomendasi: Kurangi garam, perbanyak olahraga.")
-        else:
-            st.error("🔴 Hipertensi (Tekanan Darah Tinggi)")
-            st.write("💡 Rekomendasi: Segera konsultasi ke dokter, kurangi garam.")
+        # Rekomendasi
+        st.subheader("💡 Rekomendasi")
+        st.write(hp_status['recommendation'])
+        
+        # Tabel klasifikasi hipertensi
+        with st.expander("📋 Klasifikasi Tekanan Darah (Referensi)", expanded=False):
+            st.markdown("""
+            | Kategori | Sistolik (mmHg) | Status |
+            |----------|-----------------|--------|
+            | Normal | < 120 | ✅ Ideal |
+            | Prehipertensi | 120-139 | ⚠️ Waspada |
+            | Hipertensi Stadium 1 | 140-159 | 🔴 Ringan |
+            | Hipertensi Stadium 2 | 160-179 | 🔴 Sedang |
+            | Hipertensi Stadium 3 | ≥ 180 | 🚨 Krisis |
+            | Hipotensi | < 90 | ⚠️ Rendah |
+            """)
     
     st.markdown("---")
     show_regression_history()
@@ -834,11 +916,10 @@ def show_regression_csv(model):
     st.header("📁 Regresi - Upload File")
     st.write("Upload file CSV/Excel untuk prediksi tekanan darah massal.")
     
-    # ==================== DETEKSI URUTAN FITUR DARI MODEL ====================
+    # Deteksi urutan fitur dari model
     feature_order = get_model_feature_order(model)
     if not feature_order:
         feature_order = REGRESSION_FEATURES
-    # ========================================================================
     
     uploaded_file = st.file_uploader("Upload CSV/Excel", type=["csv", "xlsx", "xls"])
     if uploaded_file:
@@ -846,25 +927,62 @@ def show_regression_csv(model):
             df = read_uploaded_file(uploaded_file)
             st.dataframe(df.head(), width='stretch')
             
-            # ==================== PERBAIKAN: Validasi fitur ====================
+            # Validasi fitur
             missing_cols = [col for col in feature_order if col not in df.columns]
             if missing_cols:
                 st.error(f"Kolom hilang: {missing_cols}")
                 st.info(f"Kolom yang diperlukan: {feature_order}")
-            # ===================================================================
             elif st.button("Prediksi", type="primary", width='stretch'):
-                # ==================== PERBAIKAN: Gunakan urutan dari model ====================
+                # Prediksi
                 input_df = df[feature_order].copy()
                 for col in feature_order:
                     input_df[col] = pd.to_numeric(input_df[col], errors="coerce")
                 predictions = model.predict(input_df)
-                # ===================================================================
+                
+                # Hasil
                 result_df = df.copy()
                 result_df["predicted_blood_pressure"] = predictions
-                st.subheader("Hasil Prediksi")
-                st.dataframe(result_df, width='stretch')
+                
+                # ==================== TAMBAHAN: STATUS HIPERTENSI ====================
+                result_df["hypertension_status"] = result_df["predicted_blood_pressure"].apply(
+                    lambda x: get_hypertension_status(x)['status']
+                )
+                result_df["hypertension_level"] = result_df["predicted_blood_pressure"].apply(
+                    lambda x: get_hypertension_status(x)['level']
+                )
+                result_df["hypertension_category"] = result_df["predicted_blood_pressure"].apply(
+                    lambda x: get_hypertension_status(x)['category']
+                )
+                result_df["hypertension_emoji"] = result_df["predicted_blood_pressure"].apply(
+                    lambda x: get_hypertension_status(x)['emoji']
+                )
+                # =====================================================================
+                
+                st.subheader("📊 Hasil Prediksi")
+                
+                # Statistik ringkasan
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Rata-rata", f"{predictions.mean():.1f} mmHg")
+                with col2:
+                    st.metric("Min", f"{predictions.min():.1f} mmHg")
+                with col3:
+                    st.metric("Max", f"{predictions.max():.1f} mmHg")
+                with col4:
+                    # Hitung persentase hipertensi
+                    hipertensi_count = sum(1 for p in predictions if p >= 140)
+                    st.metric("Hipertensi", f"{hipertensi_count} ({hipertensi_count/len(predictions)*100:.1f}%)")
+                
+                # Tampilkan hasil dengan status
+                st.dataframe(
+                    result_df[['predicted_blood_pressure', 'hypertension_emoji', 'hypertension_status', 'hypertension_category'] + 
+                              [col for col in result_df.columns if col not in ['predicted_blood_pressure', 'hypertension_emoji', 'hypertension_status', 'hypertension_category']]],
+                    width='stretch'
+                )
+                
+                # Download
                 csv_data = result_df.to_csv(index=False).encode()
-                st.download_button("💾 Download", csv_data, "hasil_regresi.csv")
+                st.download_button("💾 Download Hasil", csv_data, "hasil_regresi.csv")
         except Exception as e:
             st.error(f"Error: {e}")
 
@@ -918,6 +1036,7 @@ def main():
     
     elif menu == "📈 Regresi":
         st.header("📈 Regresi - Prediksi Tekanan Darah")
+        st.info("📌 Hasil prediksi akan dilengkapi dengan status hipertensi")
         
         regression_models = get_regression_models()
         if regression_models:
@@ -926,7 +1045,6 @@ def main():
             model = load_model(selected_model)
             st.sidebar.success(f"✅ Menggunakan: {os.path.basename(selected_model)}")
             
-            # Tampilkan info fitur dari model
             feature_order = get_model_feature_order(model)
             if feature_order:
                 st.sidebar.info(f"📌 Model menggunakan {len(feature_order)} fitur")
