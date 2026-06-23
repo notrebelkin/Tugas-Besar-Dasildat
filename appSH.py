@@ -40,11 +40,14 @@ CLASSIFICATION_FEATURES = [
     "chest_pain", "dizziness", "diabetes", "stroke"
 ]
 
+# ==================== PERBAIKAN: URUTAN FITUR UNTUK REGRESI ====================
+# Urutan ini harus SAMA dengan saat training model
 REGRESSION_FEATURES = [
     "age", "gender", "bmi", "exercise_level",
     "smoking", "alcohol", "cholesterol", "glucose", "fatigue",
     "chest_pain", "dizziness", "diabetes", "stroke", "heart_disease"
 ]
+# =================================================================================
 
 FEATURE_LABELS = {
     "blood_pressure": "Tekanan Darah (mmHg)",
@@ -219,24 +222,20 @@ def add_to_classification_history(input_data, prediction, proba=None):
         'prediction': int(prediction),
         'probability': float(proba[1]) if proba is not None else None
     }
-    st.session_state.classification_history.insert(0, history_item)  # Tambah di awal
-    # Batasi maksimal 20 items
+    st.session_state.classification_history.insert(0, history_item)
     if len(st.session_state.classification_history) > 20:
         st.session_state.classification_history = st.session_state.classification_history[:20]
 
 def delete_classification_history_item(index):
-    """Menghapus item history berdasarkan index"""
     if 0 <= index < len(st.session_state.classification_history):
         st.session_state.classification_history.pop(index)
         st.rerun()
 
 def clear_all_classification_history():
-    """Menghapus semua history"""
     st.session_state.classification_history = []
     st.rerun()
 
 def show_classification_history():
-    """Menampilkan history prediksi klasifikasi"""
     if not st.session_state.classification_history:
         st.info("📭 Belum ada riwayat prediksi. Lakukan prediksi terlebih dahulu.")
         return
@@ -271,7 +270,6 @@ def show_classification_history():
                 if st.button("❌", key=f"del_classif_{idx}", help="Hapus riwayat ini"):
                     delete_classification_history_item(idx)
             
-            # Detail dalam expander
             with st.expander(f"📋 Detail Data Pasien - {item['timestamp']}"):
                 detail_data = []
                 for feature in CLASSIFICATION_FEATURES:
@@ -293,7 +291,6 @@ def show_classification_history():
 # =========================
 
 def add_to_regression_history(input_data, prediction):
-    """Menambahkan hasil prediksi regresi ke history"""
     history_item = {
         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'input_data': input_data.copy(),
@@ -304,18 +301,15 @@ def add_to_regression_history(input_data, prediction):
         st.session_state.regression_history = st.session_state.regression_history[:20]
 
 def delete_regression_history_item(index):
-    """Menghapus item history regresi berdasarkan index"""
     if 0 <= index < len(st.session_state.regression_history):
         st.session_state.regression_history.pop(index)
         st.rerun()
 
 def clear_all_regression_history():
-    """Menghapus semua history regresi"""
     st.session_state.regression_history = []
     st.rerun()
 
 def show_regression_history():
-    """Menampilkan history prediksi regresi"""
     if not st.session_state.regression_history:
         st.info("📭 Belum ada riwayat prediksi. Lakukan prediksi terlebih dahulu.")
         return
@@ -534,7 +528,6 @@ def show_classification_manual(model, df_full):
     model_type = type(model).__name__
     st.caption(f"📌 Model yang digunakan: **{model_type}**")
     
-    # Cek apakah model memiliki predict_proba
     has_proba = hasattr(model, "predict_proba")
     if not has_proba:
         st.info(f"ℹ️ Model {model_type} hanya memberikan prediksi kelas (tanpa probabilitas)")
@@ -584,7 +577,19 @@ def show_classification_manual(model, df_full):
     with col2:
         input_data["stroke"] = 1 if st.selectbox("Stroke", ["Tidak", "Ya"], key="cls_str") == "Ya" else 0
     
-    if st.button("🔍 Prediksi", type="primary", width='stretch'):
+    # Tombol prediksi dan hapus
+    col1, col2 = st.columns(2)
+    with col1:
+        predict_clicked = st.button("🔍 Prediksi", type="primary", width='stretch')
+    with col2:
+        clear_clicked = st.button("🗑️ Hapus Hasil", width='stretch')
+    
+    if clear_clicked:
+        st.session_state.classification_result = None
+        st.session_state.classification_proba = None
+        st.rerun()
+    
+    if predict_clicked:
         try:
             input_df = pd.DataFrame([input_data])[CLASSIFICATION_FEATURES]
             prediction = model.predict(input_df)[0]
@@ -593,11 +598,9 @@ def show_classification_manual(model, df_full):
             if has_proba:
                 proba = model.predict_proba(input_df)[0]
                 st.session_state.classification_proba = proba
-                # Simpan ke history dengan proba
                 add_to_classification_history(input_data, prediction, proba)
             else:
                 st.session_state.classification_proba = None
-                # Simpan ke history tanpa proba
                 add_to_classification_history(input_data, prediction, None)
                 
         except Exception as e:
@@ -622,7 +625,6 @@ def show_classification_manual(model, df_full):
                 st.metric("Probabilitas", f"{proba[1]:.2%}")
             st.progress(proba[1])
             
-            # Risk Gauge
             fig_gauge = go.Figure(go.Indicator(
                 mode="gauge+number",
                 value=proba[1] * 100,
@@ -643,7 +645,6 @@ def show_classification_manual(model, df_full):
         else:
             st.info("📌 Model ini hanya memberikan prediksi kelas (probabilitas tidak tersedia)")
     
-    # Tampilkan history prediksi
     st.markdown("---")
     show_classification_history()
 
@@ -671,7 +672,7 @@ def show_classification_csv(model):
             st.error(f"Error: {e}")
 
 # =========================
-# REGRESI
+# REGRESI - DIPERBAIKI
 # =========================
 
 def train_regression_model(df):
@@ -685,6 +686,13 @@ def show_regression_manual(model):
     st.header("📈 Regresi - Prediksi Tekanan Darah")
     st.write("Masukkan data pasien untuk memprediksi nilai Tekanan Darah.")
     st.info("💡 Tekanan Darah adalah TARGET yang akan diprediksi")
+    
+    # ==================== PERBAIKAN: Pastikan urutan fitur benar ====================
+    # Gunakan REGRESSION_FEATURES yang sudah didefinisikan di atas
+    # Urutan: age, gender, bmi, exercise_level, smoking, alcohol,
+    #         cholesterol, glucose, fatigue, chest_pain, dizziness,
+    #         diabetes, stroke, heart_disease
+    # =================================================================================
     
     input_data = {}
     
@@ -731,12 +739,25 @@ def show_regression_manual(model):
     with col3:
         input_data["heart_disease"] = 1 if st.selectbox("Penyakit Jantung", ["Tidak", "Ya"], key="reg_hd") == "Ya" else 0
     
-    if st.button("📊 Prediksi Tekanan Darah", type="primary", width='stretch'):
+    # Tombol prediksi dan hapus
+    col1, col2 = st.columns(2)
+    with col1:
+        predict_clicked = st.button("📊 Prediksi Tekanan Darah", type="primary", width='stretch')
+    with col2:
+        clear_clicked = st.button("🗑️ Hapus Hasil", width='stretch')
+    
+    if clear_clicked:
+        st.session_state.regression_result = None
+        st.rerun()
+    
+    if predict_clicked:
         try:
+            # ==================== PERBAIKAN: Gunakan REGRESSION_FEATURES ====================
             input_df = pd.DataFrame([input_data])[REGRESSION_FEATURES]
             prediction = model.predict(input_df)[0]
             st.session_state.regression_result = prediction
             add_to_regression_history(input_data, prediction)
+            # =================================================================================
         except Exception as e:
             st.error(f"Error: {e}")
     
@@ -752,7 +773,6 @@ def show_regression_manual(model):
         with col2:
             st.info("Referensi: Normal 90-120 mmHg")
         
-        # Gauge Chart
         fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number+delta",
             value=prediction,
@@ -786,12 +806,12 @@ def show_regression_manual(model):
             st.error("🔴 Hipertensi (Tekanan Darah Tinggi)")
             st.write("💡 Rekomendasi: Segera konsultasi ke dokter, kurangi garam.")
     
-    # Tampilkan history prediksi
     st.markdown("---")
     show_regression_history()
 
 def show_regression_csv(model):
     st.header("📁 Regresi - Upload File")
+    st.write("Upload file CSV/Excel untuk prediksi tekanan darah massal.")
     uploaded_file = st.file_uploader("Upload CSV/Excel", type=["csv", "xlsx", "xls"])
     if uploaded_file:
         try:
@@ -801,8 +821,10 @@ def show_regression_csv(model):
             if missing:
                 st.error(f"Kolom hilang: {missing}")
             elif st.button("Prediksi", type="primary", width='stretch'):
+                # ==================== PERBAIKAN: Gunakan REGRESSION_FEATURES ====================
                 input_df = prepare_regression_input(df)
                 predictions = model.predict(input_df)
+                # =================================================================================
                 result_df = df.copy()
                 result_df["predicted_blood_pressure"] = predictions
                 st.subheader("Hasil Prediksi")
@@ -846,7 +868,6 @@ def main():
             model = load_model(selected_model)
             st.sidebar.success(f"✅ Menggunakan: {os.path.basename(selected_model)}")
             
-            # Tampilkan info model
             model_type = type(model).__name__
             has_proba = hasattr(model, "predict_proba")
             st.sidebar.caption(f"📌 {model_type} | Proba: {'✓' if has_proba else '✗'}")
@@ -863,12 +884,23 @@ def main():
     
     elif menu == "📈 Regresi":
         st.header("📈 Regresi - Prediksi Tekanan Darah")
+        
+        # Tampilkan urutan fitur yang digunakan
+        with st.expander("📋 Informasi Model Regresi", expanded=False):
+            st.write(f"**Fitur yang digunakan ({len(REGRESSION_FEATURES)} fitur):**")
+            for i, f in enumerate(REGRESSION_FEATURES):
+                st.write(f"{i+1}. {FEATURE_LABELS.get(f, f)}")
+        
         regression_models = get_regression_models()
         if regression_models:
             st.sidebar.subheader("📦 Model Regresi Tersedia")
             selected_model = st.sidebar.selectbox("Pilih model regresi", regression_models, format_func=lambda x: os.path.basename(x))
             model = load_model(selected_model)
             st.sidebar.success(f"✅ Menggunakan: {os.path.basename(selected_model)}")
+            
+            # Cek apakah model punya feature_names_in_
+            if hasattr(model, "feature_names_in_"):
+                st.sidebar.info(f"📌 Fitur model: {len(model.feature_names_in_)} kolom")
         else:
             st.info("📌 Tidak ada model regresi. Menggunakan model default (Random Forest).")
             model = train_regression_model(df)
