@@ -40,8 +40,7 @@ CLASSIFICATION_FEATURES = [
     "chest_pain", "dizziness", "diabetes", "stroke"
 ]
 
-# ==================== PERBAIKAN: URUTAN FITUR UNTUK REGRESI ====================
-# Urutan ini harus SAMA dengan saat training model
+# ==================== FITUR REGRESI (HARUS SAMA DENGAN MODEL) ====================
 REGRESSION_FEATURES = [
     "age", "gender", "bmi", "exercise_level",
     "smoking", "alcohol", "cholesterol", "glucose", "fatigue",
@@ -210,12 +209,28 @@ def prepare_regression_input(df):
         input_df[col] = pd.to_numeric(input_df[col], errors="coerce")
     return input_df
 
+# ==================== FUNGSI UNTUK MENDAPATKAN FITUR DARI MODEL ====================
+def get_model_feature_order(model):
+    """Mendapatkan urutan fitur dari model yang sudah dilatih"""
+    if hasattr(model, "feature_names_in_"):
+        return list(model.feature_names_in_)
+    return None
+
+def get_feature_order_from_model(model):
+    """Mendapatkan urutan fitur dari model - versi aman"""
+    try:
+        if hasattr(model, "feature_names_in_"):
+            return list(model.feature_names_in_)
+    except:
+        pass
+    return None
+# =================================================================================
+
 # =========================
 # FUNGSI HISTORY KLASIFIKASI
 # =========================
 
 def add_to_classification_history(input_data, prediction, proba=None):
-    """Menambahkan hasil prediksi ke history"""
     history_item = {
         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'input_data': input_data.copy(),
@@ -577,7 +592,6 @@ def show_classification_manual(model, df_full):
     with col2:
         input_data["stroke"] = 1 if st.selectbox("Stroke", ["Tidak", "Ya"], key="cls_str") == "Ya" else 0
     
-    # Tombol prediksi dan hapus
     col1, col2 = st.columns(2)
     with col1:
         predict_clicked = st.button("🔍 Prediksi", type="primary", width='stretch')
@@ -672,7 +686,7 @@ def show_classification_csv(model):
             st.error(f"Error: {e}")
 
 # =========================
-# REGRESI - DIPERBAIKI
+# REGRESI - DIPERBAIKI DENGAN AUTO-DETECT FEATURE ORDER
 # =========================
 
 def train_regression_model(df):
@@ -687,12 +701,19 @@ def show_regression_manual(model):
     st.write("Masukkan data pasien untuk memprediksi nilai Tekanan Darah.")
     st.info("💡 Tekanan Darah adalah TARGET yang akan diprediksi")
     
-    # ==================== PERBAIKAN: Pastikan urutan fitur benar ====================
-    # Gunakan REGRESSION_FEATURES yang sudah didefinisikan di atas
-    # Urutan: age, gender, bmi, exercise_level, smoking, alcohol,
-    #         cholesterol, glucose, fatigue, chest_pain, dizziness,
-    #         diabetes, stroke, heart_disease
-    # =================================================================================
+    # ==================== DETEKSI URUTAN FITUR DARI MODEL ====================
+    feature_order = get_model_feature_order(model)
+    
+    if feature_order:
+        st.info(f"📌 Model menggunakan {len(feature_order)} fitur dengan urutan tertentu")
+        with st.expander("📋 Lihat urutan fitur yang digunakan model"):
+            for i, f in enumerate(feature_order):
+                st.write(f"{i+1}. {FEATURE_LABELS.get(f, f)}")
+    else:
+        # Fallback ke REGRESSION_FEATURES
+        feature_order = REGRESSION_FEATURES
+        st.info(f"📌 Menggunakan urutan fitur default ({len(feature_order)} fitur)")
+    # ========================================================================
     
     input_data = {}
     
@@ -739,7 +760,6 @@ def show_regression_manual(model):
     with col3:
         input_data["heart_disease"] = 1 if st.selectbox("Penyakit Jantung", ["Tidak", "Ya"], key="reg_hd") == "Ya" else 0
     
-    # Tombol prediksi dan hapus
     col1, col2 = st.columns(2)
     with col1:
         predict_clicked = st.button("📊 Prediksi Tekanan Darah", type="primary", width='stretch')
@@ -752,8 +772,9 @@ def show_regression_manual(model):
     
     if predict_clicked:
         try:
-            # ==================== PERBAIKAN: Gunakan REGRESSION_FEATURES ====================
-            input_df = pd.DataFrame([input_data])[REGRESSION_FEATURES]
+            # ==================== PERBAIKAN: Gunakan urutan dari model ====================
+            # Buat DataFrame dengan urutan yang sama dengan model
+            input_df = pd.DataFrame([[input_data[f] for f in feature_order]], columns=feature_order)
             prediction = model.predict(input_df)[0]
             st.session_state.regression_result = prediction
             add_to_regression_history(input_data, prediction)
@@ -812,19 +833,32 @@ def show_regression_manual(model):
 def show_regression_csv(model):
     st.header("📁 Regresi - Upload File")
     st.write("Upload file CSV/Excel untuk prediksi tekanan darah massal.")
+    
+    # ==================== DETEKSI URUTAN FITUR DARI MODEL ====================
+    feature_order = get_model_feature_order(model)
+    if not feature_order:
+        feature_order = REGRESSION_FEATURES
+    # ========================================================================
+    
     uploaded_file = st.file_uploader("Upload CSV/Excel", type=["csv", "xlsx", "xls"])
     if uploaded_file:
         try:
             df = read_uploaded_file(uploaded_file)
             st.dataframe(df.head(), width='stretch')
-            missing = validate_regression_columns(df)
-            if missing:
-                st.error(f"Kolom hilang: {missing}")
+            
+            # ==================== PERBAIKAN: Validasi fitur ====================
+            missing_cols = [col for col in feature_order if col not in df.columns]
+            if missing_cols:
+                st.error(f"Kolom hilang: {missing_cols}")
+                st.info(f"Kolom yang diperlukan: {feature_order}")
+            # ===================================================================
             elif st.button("Prediksi", type="primary", width='stretch'):
-                # ==================== PERBAIKAN: Gunakan REGRESSION_FEATURES ====================
-                input_df = prepare_regression_input(df)
+                # ==================== PERBAIKAN: Gunakan urutan dari model ====================
+                input_df = df[feature_order].copy()
+                for col in feature_order:
+                    input_df[col] = pd.to_numeric(input_df[col], errors="coerce")
                 predictions = model.predict(input_df)
-                # =================================================================================
+                # ===================================================================
                 result_df = df.copy()
                 result_df["predicted_blood_pressure"] = predictions
                 st.subheader("Hasil Prediksi")
@@ -885,12 +919,6 @@ def main():
     elif menu == "📈 Regresi":
         st.header("📈 Regresi - Prediksi Tekanan Darah")
         
-        # Tampilkan urutan fitur yang digunakan
-        with st.expander("📋 Informasi Model Regresi", expanded=False):
-            st.write(f"**Fitur yang digunakan ({len(REGRESSION_FEATURES)} fitur):**")
-            for i, f in enumerate(REGRESSION_FEATURES):
-                st.write(f"{i+1}. {FEATURE_LABELS.get(f, f)}")
-        
         regression_models = get_regression_models()
         if regression_models:
             st.sidebar.subheader("📦 Model Regresi Tersedia")
@@ -898,9 +926,10 @@ def main():
             model = load_model(selected_model)
             st.sidebar.success(f"✅ Menggunakan: {os.path.basename(selected_model)}")
             
-            # Cek apakah model punya feature_names_in_
-            if hasattr(model, "feature_names_in_"):
-                st.sidebar.info(f"📌 Fitur model: {len(model.feature_names_in_)} kolom")
+            # Tampilkan info fitur dari model
+            feature_order = get_model_feature_order(model)
+            if feature_order:
+                st.sidebar.info(f"📌 Model menggunakan {len(feature_order)} fitur")
         else:
             st.info("📌 Tidak ada model regresi. Menggunakan model default (Random Forest).")
             model = train_regression_model(df)
