@@ -34,6 +34,26 @@ if 'regression_result' not in st.session_state:
 # KONSTANTA DAN KONFIGURASI
 # =========================
 
+# ==================== TAMBAHAN: INFORMASI KELOMPOK ====================
+GROUP_INFO = {
+    "judul": "Prediksi Risiko Penyakit Jantung dan Tekanan Darah Menggunakan Algoritma Machine Learning pada Smart Healthcare and Lifestyle Prediction Dataset",
+    "kelompok": "Kelompok 1",
+    "anggota": [
+        {"nama": "Fachri Reyshandi", "nim": "707012400026"},
+        {"nama": "Indria Olivia Br Sembiring ", "nim": "707012400076"},
+        {"nama": "Alfredo Michael Kahanjak P.L. Timbung", "nim": "707012400096"},
+        {"nama": "M. Ryan Febrian", "nim": "707012400120"},
+    ],
+    "deskripsi": """
+    Aplikasi ini menggunakan algoritma Neural Network (MLP) untuk memprediksi:
+    1. **Klasifikasi**: Apakah pasien memiliki penyakit jantung atau tidak
+    2. **Regresi**: Prediksi tekanan darah pasien
+    
+    Dataset yang digunakan adalah Smart Healthcare Dataset dengan 7002 data pasien.
+    """
+}
+# =====================================================================
+
 CLASSIFICATION_FEATURES = [
     "blood_pressure", "age", "gender", "bmi", "exercise_level",
     "smoking", "alcohol", "cholesterol", "glucose", "fatigue",
@@ -445,6 +465,95 @@ def show_regression_history():
             st.divider()
 
 # =========================
+# HALAMAN TENTANG (ABOUT)
+# =========================
+
+def show_about_page():
+    """Menampilkan halaman tentang kelompok dan proyek"""
+    st.header("📋 Tentang Aplikasi")
+    
+    # Judul dan deskripsi
+    st.markdown(f"""
+    ## {GROUP_INFO['judul']}
+    
+    {GROUP_INFO['deskripsi']}
+    """)
+    
+    # Informasi Kelompok
+    st.subheader("👥 Informasi Kelompok")
+    st.markdown(f"**{GROUP_INFO['kelompok']}**")
+    
+    # Tabel anggota
+    anggota_data = []
+    for i, anggota in enumerate(GROUP_INFO['anggota'], 1):
+        anggota_data.append({
+            "No": i,
+            "Nama": anggota['nama'],
+            "NIM": anggota['nim']
+        })
+    
+    st.dataframe(
+        pd.DataFrame(anggota_data),
+        width='stretch',
+        hide_index=True,
+        column_config={
+            "No": st.column_config.NumberColumn("No", width="small"),
+            "Nama": st.column_config.TextColumn("Nama", width="large"),
+            "NIM": st.column_config.TextColumn("NIM", width="medium")
+        }
+    )
+    
+    # Teknologi yang digunakan
+    st.subheader("🛠️ Teknologi yang Digunakan")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown("""
+        **Framework**
+        - Streamlit
+        - Scikit-learn
+        """)
+    with col2:
+        st.markdown("""
+        **Visualisasi**
+        - Plotly
+        - Pandas
+        """)
+    with col3:
+        st.markdown("""
+        **Machine Learning**
+        - Random Forest
+        - Neural Network (MLP)
+        """)
+    with col4:
+        st.markdown("""
+        **Lainnya**
+        - Joblib
+        - NumPy
+        """)
+    
+    # Fitur Aplikasi
+    st.subheader("✨ Fitur Aplikasi")
+    st.markdown("""
+    1. **📖 Penjelasan Dataset** - Informasi tentang dataset yang digunakan
+    2. **📊 Visualisasi Data** - Grafik distribusi dan korelasi fitur
+    3. **🎯 Klasifikasi** - Prediksi penyakit jantung (manual atau upload file)
+    4. **📈 Regresi** - Prediksi tekanan darah dengan status hipertensi (manual atau upload file)
+    """)
+    
+    # Dataset
+    st.subheader("📊 Sumber Dataset")
+    st.markdown("""
+    Dataset: **Smart Healthcare Dataset**
+    - Jumlah data: 7.002 pasien
+    - Jumlah fitur: 14 fitur + 1 target
+    - Status: Balanced (3501 sehat, 3501 sakit)
+    """)
+    
+    # Footer
+    st.markdown("---")
+    st.caption("© 2024 Kelompok 1 - Aplikasi Prediksi Penyakit Jantung dan Tekanan Darah")
+
+# =========================
 # PENJELASAN DATASET
 # =========================
 
@@ -753,7 +862,7 @@ def show_classification_csv(model):
             st.error(f"Error: {e}")
 
 # =========================
-# REGRESI - DIPERBAIKI DENGAN AUTO-DETECT FEATURE ORDER + STATUS HIPERTENSI
+# REGRESI
 # =========================
 
 def train_regression_model(df):
@@ -943,7 +1052,7 @@ def show_regression_csv(model):
                 result_df = df.copy()
                 result_df["predicted_blood_pressure"] = predictions
                 
-                # ==================== TAMBAHAN: STATUS HIPERTENSI ====================
+                # Status hipertensi
                 result_df["hypertension_status"] = result_df["predicted_blood_pressure"].apply(
                     lambda x: get_hypertension_status(x)['status']
                 )
@@ -956,7 +1065,6 @@ def show_regression_csv(model):
                 result_df["hypertension_emoji"] = result_df["predicted_blood_pressure"].apply(
                     lambda x: get_hypertension_status(x)['emoji']
                 )
-                # =====================================================================
                 
                 st.subheader("📊 Hasil Prediksi")
                 
@@ -969,16 +1077,13 @@ def show_regression_csv(model):
                 with col3:
                     st.metric("Max", f"{predictions.max():.1f} mmHg")
                 with col4:
-                    # Hitung persentase hipertensi
                     hipertensi_count = sum(1 for p in predictions if p >= 140)
                     st.metric("Hipertensi", f"{hipertensi_count} ({hipertensi_count/len(predictions)*100:.1f}%)")
                 
-                # Tampilkan hasil dengan status
-                st.dataframe(
-                    result_df[['predicted_blood_pressure', 'hypertension_emoji', 'hypertension_status', 'hypertension_category'] + 
-                              [col for col in result_df.columns if col not in ['predicted_blood_pressure', 'hypertension_emoji', 'hypertension_status', 'hypertension_category']]],
-                    width='stretch'
-                )
+                # Tampilkan hasil
+                display_cols = ['predicted_blood_pressure', 'hypertension_emoji', 'hypertension_status', 'hypertension_category']
+                display_cols += [col for col in result_df.columns if col not in ['predicted_blood_pressure', 'hypertension_emoji', 'hypertension_status', 'hypertension_category']]
+                st.dataframe(result_df[display_cols], width='stretch')
                 
                 # Download
                 csv_data = result_df.to_csv(index=False).encode()
@@ -999,7 +1104,10 @@ def main():
         st.stop()
     
     st.sidebar.header("📌 Navigasi")
-    menu = st.sidebar.radio("Pilih Menu", ["📖 Penjelasan Dataset", "📊 Visualisasi Data", "🎯 Klasifikasi", "📈 Regresi"])
+    menu = st.sidebar.radio(
+        "Pilih Menu",
+        ["📖 Penjelasan Dataset", "📊 Visualisasi Data", "🎯 Klasifikasi", "📈 Regresi", "📋 Tentang"]
+    )
     
     if menu == "📖 Penjelasan Dataset":
         show_dataset_explanation(df)
@@ -1058,6 +1166,9 @@ def main():
             show_regression_manual(model)
         else:
             show_regression_csv(model)
+    
+    elif menu == "📋 Tentang":
+        show_about_page()
 
 if __name__ == "__main__":
     main()
